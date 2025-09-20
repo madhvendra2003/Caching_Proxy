@@ -1,0 +1,162 @@
+#!/bin/bash
+
+# --- CONFIGURATION ---
+# This part automatically finds the directory where the script is located.
+# This makes the script portable and works on any system (including Git Bash on Windows).
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "$(readlink -f "${BASH_SOURCE[0]}")" )" &> /dev/null && pwd )
+# Construct the full path to the JAR file relative to the script's location.
+# This assumes the script is in the root of your project folder.
+JAR_PATH="$SCRIPT_DIR/target/caching-proxy-0.0.1-SNAPSHOT.jar"
+
+# Directory to store process IDs (PIDs) and log files.
+PID_DIR="/tmp/caching-proxy"
+
+
+# --- JAR EXISTENCE CHECK ---
+if [ ! -f "$JAR_PATH" ]; then
+    echo "Error: JAR file not found at the expected path: $JAR_PATH"
+    echo "Please ensure the script is in your project's root directory and run: mvn clean package"
+    exit 1
+fi
+
+# Ensure the PID/log directory exists
+mkdir -p "$PID_DIR"
+
+
+# --- COMMAND PARSING ---
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    start)
+        PORT=""
+        ORIGIN=""
+        while [[ "$#" -gt 0 ]]; do
+            case $1 in
+                --port) PORT="$2"; shift ;;
+                --origin) ORIGIN="$2"; shift ;;
+                *) echo "Unknown parameter passed for 'start': $1"; exit 1 ;;
+            esac
+            shift
+        done
+
+        if [ -z "$PORT" ] || [ -z "$ORIGIN" ]; then
+            echo "Error: Both --port and --origin must be provided for 'start'."
+            echo "Usage: caching-proxy start --port <number> --origin <url>"
+            exit 1
+        fi
+
+        if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+            echo "Error: Port must be a number."
+            exit 1
+        fi
+
+        PID_FILE="$PID_DIR/$PORT.pid"
+        LOG_FILE="$PID_DIR/$PORT.log"
+
+        if [ -f "$PID_FILE" ]; then
+            OLD_PID=$(cat "$PID_FILE")
+            # Check if the process is actually running
+            if ps -p $OLD_PID > /dev/null 2>&1; then
+                echo "Error: An instance is already running on port $PORT (PID: $OLD_PID)."
+                exit 1
+            else
+                echo "Warning: Stale PID file found for port $PORT. Removing it."
+                rm -f "$PID_FILE"
+            fi
+        fi
+
+        echo "Attempting to start proxy instance on port $PORT for origin $ORIGIN..."
+
+        # Use 'nohup' to ensure the process keeps running even if the terminal is closed.
+        # '&' runs the process in the background.
+        # IMPORTANT: "$JAR_PATH" is quoted to handle potential spaces in the file path.
+        # We add --spring.shell.interactive.enabled=false to prevent Spring Shell from hijacking the arguments.
+         java -Dserver.port="$PORT" -Dproxy.origin="$ORIGIN" -jar "$JAR_PATH" > "$LOG_FILE" 2>&1 &
+        NEW_PID=$!
+
+        echo $NEW_PID > "$PID_FILE"
+        sleep 2 # Give the application a moment to start up or fail.
+
+        if ps -p $NEW_PID > /dev/null 2>&1; then
+            echo "✅ Success! Proxy instance started on port $PORT with PID $NEW_PID."
+            echo "   Logs are being written to: $LOG_FILE"
+        else
+            echo "❌ Error: The application failed to start. Check the log file for details:"
+            echo "   $LOG_FILE"
+            cat "$LOG_FILE"
+            rm -f "$PID_FILE" # Clean up the failed PID file.
+        fi
+        ;;
+
+    stop)
+        PORT=""
+        while [[ "$#" -gt 0 ]]; do
+            case $1 in
+                --port) PORT="$2"; shift ;;
+                *) echo "Unknown parameter passed for 'stop': $1"; exit 1 ;;
+            esac
+            shift
+        done
+
+        if [ -z "$PORT" ]; then
+            echo "Error: --port must be provided for 'stop'."
+            echo "Usage: caching-proxy stop --port <number>"
+            exit 1
+        fi
+
+        PID_FILE="$PID_DIR/$PORT.pid"
+
+        if [ ! -f "$PID_FILE" ]; then
+            echo "Error: No instance found running on port $PORT (no PID file)."
+            exit 1
+        fi
+
+        PID=$(cat "$PID_FILE")
+
+        if ps -p $PID > /dev/null 2>&1; then
+            echo "Stopping process $PID on port $PORT..."
+            kill $PID
+            sleep 1 # Wait a moment for the process to terminate.
+            if ps -p $PID > /dev/null 2>&1; then
+                echo "❌ Error: Failed to stop process $PID. Trying force kill..."
+                kill -9 $PID
+            fi
+            rm -f "$PID_FILE"
+            echo "✅ Successfully stopped the instance on port $PORT."
+        else
+            echo "Warning: No running process found for port $PORT (stale PID file). Removing PID file."
+            rm -f "$PID_FILE"
+        fi
+        ;;
+
+    status)
+        FOUND=0
+        for PID_PATH in "$PID_DIR"/*.pid; do
+            # Handle case where no .pid files exist
+            [ -e "$PID_PATH" ] || continue
+            FOUND=1
+
+            PORT=$(basename "$PID_PATH" .pid)
+            PID=$(cat "$PID_PATH")
+
+            if ps -p $PID > /dev/null 2>&1; then
+                echo "[RUNNING] Port: $PORT, PID: $PID"
+            else
+                echo "[STOPPED] Port: $PORT (stale PID file found)"
+            fi
+        done
+
+        if [ $FOUND -eq 0 ]; then
+            echo "No managed proxy instances found."
+        fi
+        ;;
+
+    *)
+        echo "Unknown command: '$COMMAND'"
+        echo "Usage: caching-proxy {start|stop|status} [options...]"
+        exit 1
+        ;;
+esac
+

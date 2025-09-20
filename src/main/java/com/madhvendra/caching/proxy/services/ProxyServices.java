@@ -28,6 +28,9 @@ public class ProxyServices {
     @Autowired
     RestCall restCall = new RestCall();
 
+    @Autowired
+    private Constants constants;
+
 
 
 
@@ -42,7 +45,7 @@ public class ProxyServices {
             return Optional.of(cachedResponse);
         } else {
             System.out.println("Cache miss for key: " + keyCache);
-            restCall.setOriginUrl(Constants.ORIGIN_URL);
+            restCall.setOriginUrl(constants.ORIGIN_URL);
             restCall.setURL(reqUrl);
             restCall.setMethod(reqMethod);
             Object response = restCall.getResponse().getJsonResponse();

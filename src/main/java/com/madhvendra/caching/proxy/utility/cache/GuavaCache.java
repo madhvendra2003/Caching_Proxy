@@ -44,6 +44,9 @@ public class GuavaCache {
 
     }
 
+    public void clearAll() {
+        cache.invalidateAll();
+    }
+
 
 }
-
