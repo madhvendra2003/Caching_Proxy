@@ -112,21 +112,7 @@ Logs are stored in:
 - Process management errors are reported with clear error messages
 - HTTP errors from the origin server are properly propagated
 
-## Development
 
-To contribute to the project:
 
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
 
-## Testing
 
-Run the tests using:
-```bash
-mvn test
-```
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
