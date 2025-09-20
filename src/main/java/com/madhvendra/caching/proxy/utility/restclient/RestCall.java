@@ -16,19 +16,35 @@ import org.springframework.web.client.RestTemplate;
 public class RestCall {
     // here the actual implementation of the rest client will be done
     // it will be called in services
+
+   public String originUrl = "https://dummyjson.com";
    public String URL ;
 
    public String method;
+
+   public RestCall(String originUrl, String method , String URL){
+         this.originUrl = originUrl;
+         this.method = method;
+         this.URL = URL;
+   }
+
+    public RestCall(String method , String URL){
+        this.method = method;
+        this.URL = URL;
+    }
 
 
    RestTemplate restTemplate = new RestTemplate();
 
     public JsonObject getResponse(){
         JsonObject jsonObject = new JsonObject();
-        if(method.equals("GET")){
-            Object response = restTemplate.getForObject(URL, Object.class);
-            jsonObject.setJsonResponse(response);
-        }
+        System.out.println("Making "+method+" request to: "+originUrl+URL);
+
+            Object response = restTemplate.getForEntity(originUrl+URL, Object.class);
+            String result = response.toString();
+            System.out.println("inside the class : " + result);
+            jsonObject.setJsonResponse(result);
+
         return jsonObject;
     }
 

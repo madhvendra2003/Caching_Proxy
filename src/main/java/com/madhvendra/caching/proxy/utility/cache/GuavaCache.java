@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.shell.command.annotation.Command;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 @Component
