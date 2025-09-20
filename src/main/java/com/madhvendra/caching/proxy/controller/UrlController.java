@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.util.Optional;
 
 @RestController
@@ -18,9 +19,10 @@ public class UrlController {
 
 
     @RequestMapping(path = "/*")
-    public ResponseEntity<?> url (HttpServletRequest request) {
+    public ResponseEntity<?> url (HttpServletRequest request) throws IOException {
       String reqUrl  = request.getRequestURI();
       String reqMethod = request.getMethod();
+
 
         Optional<Object> data  = proxyServices.getResponse(reqUrl, reqMethod);
         return data.<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
